@@ -1,3 +1,4 @@
+code = """
 import streamlit as st
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -10,9 +11,16 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
+# Материалы и коэффициенты
 MATERIALS = {'кирпич': 0.7, 'газоблок': 0.18, 'пеноблок': 0.16, 'керамзитоблок': 0.4, 'сэндвич панель': 0.05, 'брус': 0.15}
-U_VALUES = {'окно_одинарное': 5.0, 'окно_двойное': 2.9, 'окно_тройное': 1.5, 'окно_евро': 1.3, 'дверь_деревянная': 2.0, 'дверь_металлическая': 1.5, 'дверь_утепленная': 0.8, 'пол_неутепленный': 0.5, 'пол_утепленный': 0.2, 'потолок_неутепленный': 0.6, 'потолок_утепленный': 0.25, 'радиатор': -80}
+U_VALUES = {
+    'окно_одинарное': 5.0, 'окно_двойное': 2.9, 'окно_тройное': 1.5, 'окно_евро': 1.3,
+    'дверь_деревянная': 2.0, 'дверь_металлическая': 1.5, 'дверь_утепленная': 0.8,
+    'пол_неутепленный': 0.5, 'пол_утепленный': 0.2, 'потолок_неутепленный': 0.6, 'потолок_утепленный': 0.25,
+    'радиатор': -80
+}
 
+# Загрузка теплообменников
 def load_heat_exchangers():
     return [
         {'model': 'Торнадо 3', 'power': 20, 'air_flow': 1330, 'height': 300, 'width': 280, 'rows': 4, 'price': 65000, 'type': 'торнадо'},
@@ -21,6 +29,7 @@ def load_heat_exchangers():
         {'model': 'Торнадо 10', 'power': 106, 'air_flow': 9000, 'height': 500, 'width': 1000, 'rows': 4, 'price': 280000, 'type': 'торнадо'}
     ]
 
+# Расчет теплопотерь
 def calculate_heat_loss(params):
     total_loss = 0
     temp_diff = params['temp_inside'] - params['temp_outside']
@@ -36,6 +45,7 @@ def calculate_heat_loss(params):
         total_loss += params.get('radiator_count',0) * U_VALUES['радиатор']
     return max(total_loss,0)
 
+# Подбор теплообменников с каскадом
 def select_heat_exchanger(required_power, room_volume, preferred_type="торнадо"):
     exchangers = load_heat_exchangers()
     suitable = []
@@ -46,9 +56,12 @@ def select_heat_exchanger(required_power, room_volume, preferred_type="торн�
         total_power = unit['power']*count
         air_exchange = (unit['air_flow']*count)/room_volume if room_volume>0 else 0
         power_reserve = round((total_power-required_power)/required_power*100,1)
-        suitable.append({'model':unit['model'], 'unit_power':unit['power'], 'total_power':total_power, 'air_flow':unit['air_flow'], 'air_exchange':round(air_exchange,1), 'count':count, 'power_reserve':power_reserve, 'price':unit['price']*count, 'type':unit['type']})
+        suitable.append({'model':unit['model'], 'unit_power':unit['power'], 'total_power':total_power,
+                         'air_flow':unit['air_flow'], 'air_exchange':round(air_exchange,1), 'count':count,
+                         'power_reserve':power_reserve, 'price':unit['price']*count, 'type':unit['type']})
     return sorted(suitable,key=lambda x:(-x['total_power'], x['price']))
 
+# Визуализация
 def create_visualization_fans_gradient(room_width, room_length, fans_info):
     fig, ax = plt.subplots(figsize=(10,6))
     ax.set_xlim(0, room_length)
@@ -70,7 +83,7 @@ def create_visualization_fans_gradient(room_width, room_length, fans_info):
     plt.tight_layout()
     return fig
 
-# Streamlit интерфейс
+# Интерфейс
 st.title('❄️ Калькулятор тепловентилятора Торнадо')
 with st.sidebar:
     st.header('Параметры помещения')
@@ -91,12 +104,32 @@ with st.sidebar:
     temp_inside = st.number_input('Температура внутри (°C)',15.0,30.0,20.0,0.5)
     temp_outside = st.number_input('Температура снаружи (°C)',-30.0,30.0,-5.0,0.5)
 
+# Расчеты
 room_volume = area*height
 wall_area = area*height*2
 floor_area = ceiling_area = area
-params = {'room_volume':room_volume,'wall_area':wall_area,'floor_area':floor_area,'ceiling_area':ceiling_area,'wall_material':wall_material,'wall_thickness':wall_thickness,'window_area':window_area,'window_type':window_type,'door_area':door_area,'door_type':door_type,'floor_insulated':floor_insulated,'ceiling_insulated':ceiling_insulated,'has_radiators':has_radiators,'radiator_count':radiator_count,'temp_inside':temp_inside,'temp_outside':temp_outside}
+params = {'room_volume':room_volume,'wall_area':wall_area,'floor_area':floor_area,'ceiling_area':ceiling_area,
+          'wall_material':wall_material,'wall_thickness':wall_thickness,'window_area':window_area,'window_type':window_type,
+          'door_area':door_area,'door_type':door_type,'floor_insulated':floor_insulated,'ceiling_insulated':ceiling_insulated,
+          'has_radiators':has_radiators,'radiator_count':radiator_count,'temp_inside':temp_inside,'temp_outside':temp_outside}
+
 heat_loss = calculate_heat_loss(params)
 exchangers = select_heat_exchanger(heat_loss/1000, room_volume,'торнадо')
 
 st.subheader('Результаты')
-st.write(f'Теплопотери: {heat_loss/1000
+st.write(f'Теплопотери: {heat_loss/1000:.2f} кВт')
+
+if exchangers:
+    fans_info = [exchangers[0]]
+    st.write('Рекомендуемые тепловентиляторы:')
+    for fan in fans_info:
+        st.write(f"{fan['model']} x{fan['count']}, общая мощность: {fan['total_power']:.2f} кВт, запас мощности: {fan['power_reserve']}%")
+    fig = create_visualization_fans_gradient(height, area, fans_info)
+    st.pyplot(fig)
+else:
+    st.warning('Нет подходящих моделей теплообменников')
+"""
+
+with open("app.py", "w", encoding="utf-8") as f:
+    f.write(code)
+print("Файл app.py создан!")
