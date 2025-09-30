@@ -19,10 +19,10 @@ st.set_page_config(
 def load_heat_exchangers():
     # power — кВт, air_flow — м³/ч
     return [
-        {'model': 'Торнадо 3', 'power': 20.0,  'air_flow': 1330, 'price': 65000, 'type': 'торнадо'},
-        {'model': 'Торнадо 4', 'power': 33.0,  'air_flow': 2670, 'price': 85000, 'type': 'торнадо'},
-        {'model': 'Торнадо 5', 'power': 55.0,  'air_flow': 4500, 'price': 120000,'type': 'торнадо'},
-        {'model': 'Торнадо 10','power': 240.0, 'air_flow': 9000, 'price': 280000,'type': 'торнадо'},
+        {'model': 'Торнадо 3',  'power': 20.0,  'air_flow': 1330, 'price': 65000,  'type': 'торнадо'},
+        {'model': 'Торнадо 4',  'power': 33.0,  'air_flow': 2670, 'price': 85000,  'type': 'торнадо'},
+        {'model': 'Торнадо 5',  'power': 55.0,  'air_flow': 4500, 'price': 120000, 'type': 'торнадо'},
+        {'model': 'Торнадо 10', 'power': 106.0, 'air_flow': 9000, 'price': 280000, 'type': 'торнадо'},
         # Можно добавить ещё модели
     ]
 
@@ -61,10 +61,7 @@ SECTION_COEFF = {
 # Вспомогательные функции
 # -----------------------------
 def infer_room_sides_from_area(area_m2, ratio=1.0):
-    """
-    Получаем длину и ширину по площади и соотношению сторон (length/width = ratio).
-    Если ratio=1 -> квадрат.
-    """
+    """ Получаем длину и ширину по площади и соотношению сторон """
     if area_m2 <= 0:
         return 1.0, 1.0
     width = math.sqrt(area_m2 / ratio)
@@ -82,18 +79,13 @@ def radiator_total_heat(sections_total, rad_type, height_mm, t_fluid_in, t_in):
     return sections_total * coeff * delta
 
 def calculate_heat_loss_by_components(params):
-    """
-    Расчёт всех компонент теплопотерь в ваттах.
-    params: dict с ключами (area, height, wall_material, wall_thickness, window_area, window_type,
-    door_area, door_type, floor_insulated, ceiling_insulated, t_out, t_in)
-    """
+    """ Расчёт всех компонент теплопотерь в ваттах """
     area = params['area']
     height = params['height']
     t_out = params['t_out']
     t_in = params['t_in']
     delta = max(t_in - t_out, 0.0)
 
-    # аппроксимация периметра: предполагаем квадратное основание (при необходимости пользователь может задать ratio)
     length_est, width_est = infer_room_sides_from_area(area, params.get('shape_ratio', 1.0))
     perimeter = 2 * (length_est + width_est)
     wall_area = perimeter * height
@@ -121,10 +113,7 @@ def calculate_heat_loss_by_components(params):
     return total_loss, components, room_volume, (length_est, width_est), wall_area
 
 def select_heat_exchangers(required_kw, room_volume, prefer_type="торнадо", max_units=4):
-    """
-    Подбор 1..max_units агрегатов. Возвращает список подходящих конфигураций.
-    Требование: суммарная мощность >= required * 1.15 и кратность воздухообмена в диапазоне 2.5..7
-    """
+    """ Подбор 1..max_units агрегатов """
     units = load_heat_exchangers()
     candidates = []
     for n in range(1, max_units+1):
@@ -148,16 +137,11 @@ def select_heat_exchangers(required_kw, room_volume, prefer_type="торнадо
                     'power_reserve_%': round((total_power - required_kw) / required_kw * 100, 1),
                     'price': u['price'] * n
                 })
-    # сортировка: сначала по меньшей цене, затем по меньшей избыточности (предпочитаем экономичное)
     candidates_sorted = sorted(candidates, key=lambda x: (x['price'], abs(x['power_reserve_%'])))
     return candidates_sorted
 
-def create_room_visual(length_m, width_m, fan_positions, fan_directions, show_grid=False):
-    """
-    Рисует комнату (length x width), отображает вентиляторы в указанных позициях.
-    fan_positions: list of (x, y) in meters (0..length, 0..width).
-    fan_directions: list of angles (radians) направления потока.
-    """
+def create_room_visual(length_m, width_m, fan_positions, fan_directions, fan_models, show_grid=False):
+    """ Рисует комнату (length x width), отображает вентиляторы с подписями моделей """
     fig, ax = plt.subplots(figsize=(8, max(4, 6 * (width_m / max(length_m,1e-6)))))
     ax.set_xlim(0, length_m)
     ax.set_ylim(0, width_m)
@@ -166,20 +150,20 @@ def create_room_visual(length_m, width_m, fan_positions, fan_directions, show_gr
     ax.add_patch(plt.Rectangle((0, 0), length_m, width_m, fill=False, linewidth=2))
 
     if show_grid:
-        ax.set_xticks([round(x,1) for x in list(range(0, int(math.ceil(length_m))+1))])
-        ax.set_yticks([round(y,1) for y in list(range(0, int(math.ceil(width_m))+1))])
         ax.grid(True, linestyle=':', alpha=0.5)
 
-    # рисуем вентиляторы и стрелки потока
     for idx, pos in enumerate(fan_positions):
         x, y = pos
         ax.scatter(x, y, s=160, marker='^', color='tab:orange', zorder=10)
-        ax.text(x, y - 0.3, f"FV{idx+1}", ha='center', va='top', fontsize=9, weight='bold')
-        # направление: стрелка вперёд
+        label = fan_models[idx] if idx < len(fan_models) else f"Торнадо {idx+1}"
+        ax.text(x, y - 0.3, label, ha='center', va='top', fontsize=9, weight='bold')
         angle = fan_directions[idx] if idx < len(fan_directions) else 0.0
         dx = math.cos(angle) * max(length_m, width_m) * 0.35
         dy = math.sin(angle) * max(length_m, width_m) * 0.35
-        ax.arrow(x, y, dx, dy, head_width=0.2*max(1, width_m/10), head_length=0.25*max(1,length_m/10), color='tab:orange', alpha=0.8)
+        ax.arrow(x, y, dx, dy,
+                 head_width=0.2*max(1, width_m/10),
+                 head_length=0.25*max(1,length_m/10),
+                 color='tab:orange', alpha=0.8)
 
     ax.set_xlabel("Длина (м)")
     ax.set_ylabel("Ширина (м)")
@@ -213,7 +197,8 @@ def main():
 
         st.subheader("Ограждающие конструкции")
         wall_material = st.selectbox("Материал стен", list(MATERIALS.keys()))
-        wall_thickness = st.number_input("Толщина стен (м)", min_value=0.05, max_value=2.0, value=0.3, step=0.01)
+        wall_thickness_cm = st.number_input("Толщина стен (см)", min_value=5, max_value=200, value=30, step=1)
+        wall_thickness = wall_thickness_cm / 100.0
 
         st.markdown("Окна и двери")
         window_area = st.number_input("Площадь окон (м²)", min_value=0.0, value=5.0, step=0.1)
@@ -248,18 +233,12 @@ def main():
                 rad_sections_total = per_bank * banks
 
         st.markdown("---")
-        st.header("📍 Местоположение (зона)")
-        location = st.selectbox("Выберите зону установки тепловентилятора:", [
-            "Цех №1", "Цех №2", "Склад", "Ангар / гараж", "Подсобное помещение", "Офис внутри цеха"
-        ], index=0)
-
         st.markdown("Максимальное число агрегатов для подбора (каскад)")
         max_units = st.slider("Макс. агрегатов", min_value=1, max_value=4, value=3, step=1)
 
     # -----------------------------
-    # Основная часть: расчёты (онлайн)
+    # Основная часть: расчёты
     # -----------------------------
-    # Собираем параметры
     params = {
         'area': area,
         'height': height,
@@ -278,7 +257,7 @@ def main():
 
     total_loss_w, breakdown, room_volume, (room_length, room_width), wall_area = calculate_heat_loss_by_components(params)
 
-    # Тепло от радиаторов (если заданы)
+    # Радиаторы
     radiator_heat_w = 0.0
     if rad_present and rad_sections_total > 0:
         radiator_heat_w = radiator_total_heat(rad_sections_total, rad_type, rad_height, t_fluid_in, t_in)
@@ -286,7 +265,6 @@ def main():
     net_need_w = max(total_loss_w - radiator_heat_w, 0.0)
     net_need_kw = net_need_w / 1000.0
 
-    # Подбор теплообменников (каскад)
     suitable = select_heat_exchangers(net_need_kw if net_need_kw > 0 else 0.001, room_volume, prefer_type="торнадо", max_units=max_units)
 
     # -----------------------------
@@ -327,111 +305,41 @@ def main():
             best = suitable[0]
             st.success(f"Рекомендуется: {best['model']} (мощность {best['power_kW']} кВт, запас {best['power_reserve_%']}%)")
         else:
-            st.warning("Нет подходящих моделей под текущие параметры (попробуйте увеличить max агрегатов или изменить параметры помещения).")
+            st.warning("Нет подходящих моделей под текущие параметры.")
 
     # -----------------------------
-    # Выбор расположения и ручная настройка координат
+    # Визуализация
     # -----------------------------
-    st.subheader("📍 Расположение тепловентилятора(ов) — автомат или вручную")
-    placement_mode = st.radio("Режим размещения", ["Автоматическое размещение", "Ручное размещение (в метрах)"], index=0)
+    st.subheader("📈 Визуализация помещения и воздушных потоков")
+    if suitable:
+        best = suitable[0]
+        units_to_place = best['units']
+        fan_models = [best['base_model']] * units_to_place
+    else:
+        units_to_place = 1
+        fan_models = ["Торнадо"]
 
-    # Предустановленные позиции в промзонах (авто)
     default_positions = []
     default_directions = []
-    if placement_mode == "Автоматическое размещение":
-        # Если есть рекомендация с units — расставим равномерно вдоль одной стороны
-        units_to_place = best['units'] if (net_need_kw > 0 and len(suitable)>0) else 1
-        for i in range(units_to_place):
-            x = room_length * (i + 1) / (units_to_place + 1)
-            y = room_width * 0.08  # вдоль короткой стены, 8% от ширины
-            default_positions.append((x, y))
-            default_directions.append(0.0)  # направлено вдоль оси X
-        st.info(f"Авто-размещение: размещено {len(default_positions)} агрегата(ов) вдоль стены (зона: {location})")
-    else:
-        # ручная: создаём контролы для каждого агрегата (если есть рекомендованный набор) либо для 1..max_units
-        units_to_place = best['units'] if (net_need_kw > 0 and len(suitable)>0) else 1
-        st.info(f"Укажите координаты для {units_to_place} агрегата(ов). Координаты в пределах: x ∈ [0, {room_length:.2f}], y ∈ [0, {room_width:.2f}]")
-        for i in range(units_to_place):
-            st.markdown(f"**Агрегат {i+1}**")
-            x = st.number_input(f"X_{i+1} (м)", min_value=0.0, max_value=room_length, value=room_length*(i+1)/(units_to_place+1), step=0.1, key=f"x_{i}")
-            y = st.number_input(f"Y_{i+1} (м)", min_value=0.0, max_value=room_width, value=room_width*0.1, step=0.1, key=f"y_{i}")
-            angle_deg = st.slider(f"Угол направления тёплого потока для агрегата {i+1} (град)", min_value=-180, max_value=180, value=0, key=f"ang_{i}")
-            default_positions.append((x,y))
-            default_directions.append(math.radians(angle_deg))
+    for i in range(units_to_place):
+        x = room_length * (i+1) / (units_to_place+1)
+        y = 0.5
+        if x < room_length/2 and x < room_width/2:
+            angle = 0
+        elif x >= room_length/2 and x < room_width/2:
+            angle = math.pi
+        elif y < room_width/2:
+            angle = math.pi/2
+        else:
+            angle = -math.pi/2
+        default_positions.append((x,y))
+        default_directions.append(angle)
 
-    # Если автомат — directions = 0 (вдоль X), если ручной — user-provided angles used above
-    if placement_mode == "Автоматическое размещение":
-        # даём пользователю возможность выбрать тип авторазмещения
-        auto_choice = st.selectbox("Тип авторазмещения:", ["Вдоль длинной стены", "По центру", "В углах"], index=0)
-        if auto_choice == "Вдоль длинной стены":
-            # разместим по центру вдоль длинной стены
-            units_to_place = best['units'] if (net_need_kw > 0 and len(suitable)>0) else 1
-            default_positions = []
-            default_directions = []
-            for i in range(units_to_place):
-                x = room_length * (i + 1) / (units_to_place + 1)
-                # выбираем стену: если length>=width — вдоль нижней стенки (y small), иначе по боковой
-                if room_length >= room_width:
-                    y = room_width * 0.06
-                    dir_angle = 0.0
-                else:
-                    y = room_width * (i+1)/(units_to_place+1)
-                    x = room_length * 0.06
-                    dir_angle = math.pi/2
-                default_positions.append((x,y))
-                default_directions.append(dir_angle)
-        elif auto_choice == "По центру":
-            default_positions = [(room_length/2, room_width/2)]
-            default_directions = [0.0]
-        else:  # углы
-            default_positions = [(room_length*0.08, room_width*0.08), (room_length*0.92, room_width*0.92)]
-            default_directions = [0.0, math.pi]
-
-    # Визуализация
-    st.subheader("📈 Визуализация помещения и воздушных потоков")
-    fig = create_room_visual(room_length, room_width, default_positions, default_directions, show_grid=True)
+    fig = create_room_visual(room_length, room_width, default_positions, default_directions, fan_models, show_grid=True)
     st.pyplot(fig)
 
-    # -----------------------------
-    # Экспорт результатов
-    # -----------------------------
-    st.subheader("📥 Экспорт результатов")
-    out = {
-        'area_m2': area,
-        'height_m': height,
-        'volume_m3': room_volume,
-        't_out_C': t_out,
-        't_in_C': t_in,
-        't_fluid_in_C': t_fluid_in,
-        'total_loss_kW': round(total_loss_w/1000.0, 3),
-        'radiator_heat_kW': round(radiator_heat_w/1000.0, 3),
-        'need_kW': round(net_need_kw, 3),
-        'recommended_configuration': (best['model'] if (net_need_kw>0 and len(suitable)>0) else '—'),
-        'recommended_price': (best['price'] if (net_need_kw>0 and len(suitable)>0) else 0),
-        'location_zone': location
-    }
-    df_out = pd.DataFrame([out])
-    csv_buf = io.StringIO()
-    df_out.to_csv(csv_buf, index=False)
-    st.download_button("Скачать CSV результатов", csv_buf.getvalue(), file_name=f"toronado_calc_{int(area)}m2.csv", mime="text/csv")
-
-    report = f"""ОТЧЕТ — Калькулятор тепловентилятора Торнадо
-Площадь: {area:.1f} м²
-Высота: {height:.2f} м
-Объём: {room_volume:.1f} м³
-Температуры: наружн. {t_out:.1f}°C, внутренн. {t_in:.1f}°C
-Температура теплоносителя: {t_fluid_in:.1f}°C
-
-Теплопотери (итого): {total_loss_w/1000.0:.3f} кВт
-Отдача радиаторов: {radiator_heat_w/1000.0:.3f} кВт
-Остаток (нужна мощность): {net_need_kw:.3f} кВт
-
-Рекомендуемая конфигурация: {(best['model'] if (net_need_kw>0 and len(suitable)>0) else 'Не требуется / не найдена')}
-"""
-    st.download_button("Скачать текстовый отчёт", report, file_name=f"toronado_report_{int(area)}m2.txt", mime="text/plain")
-
     st.markdown("---")
-    st.caption("Примечание: расчёты приближённые и служат для быстрой предварительной оценки. Для точного инженерного подбора рекомендуется привлекать специалиста и использовать паспортные данные оборудования.")
+    st.markdown("Разработано для подбора тепловентиляторов 🌪️ Торнадо. Профессиональный инструмент инженеров-теплотехников.")
 
 if __name__ == "__main__":
     main()
