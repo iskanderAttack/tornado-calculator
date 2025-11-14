@@ -27,10 +27,10 @@ def load_heat_exchangers():
     throw_length — примерная дальность воздушной струи в метрах.
     """
     return [
-        {'model': 'Торнадо 3',  'power_nominal': 20.0,  'air_flow': 1330, 'price': 65000,  't_water_nom': 90, 't_air_nom': 15, 'throw_length': 14},
-        {'model': 'Торнадо 4',  'power_nominal': 33.0,  'air_flow': 2670, 'price': 85000,  't_water_nom': 90, 't_air_nom': 15, 'throw_length': 22},
-        {'model': 'Торнадо 5',  'power_nominal': 55.0,  'air_flow': 4500, 'price': 120000, 't_water_nom': 90, 't_air_nom': 15, 'throw_length': 28},
-        {'model': 'Торнадо 10', 'power_nominal': 106.0, 'air_flow': 9000, 'price': 280000, 't_water_nom': 90, 't_air_nom': 15, 'throw_length': 35},
+        {'model': 'Торнадо 3',  'power_nominal': 20.0,  'air_flow': 1330, 'price': 19000,  't_water_nom': 90, 't_air_nom': 15, 'throw_length': 14},
+        {'model': 'Торнадо 4',  'power_nominal': 33.0,  'air_flow': 2670, 'price': 29000,  't_water_nom': 90, 't_air_nom': 15, 'throw_length': 22},
+        {'model': 'Торнадо 5',  'power_nominal': 55.0,  'air_flow': 4500, 'price': 39000, 't_water_nom': 90, 't_air_nom': 15, 'throw_length': 28},
+        {'model': 'Торнадо 10', 'power_nominal': 106.0, 'air_flow': 9000, 'price': 69000, 't_water_nom': 90, 't_air_nom': 15, 'throw_length': 35},
     ]
 
 MATERIALS = { 'Кирпич': 0.7, 'Газоблок': 0.18, 'Пеноблок': 0.16, 'Керамзитоблок': 0.4, 'Сэндвич-панель': 0.05, 'Брус': 0.15 }
